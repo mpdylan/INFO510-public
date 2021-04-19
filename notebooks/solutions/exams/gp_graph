@@ -1,0 +1,20 @@
+digraph {
+	eta [label="eta
+~
+Exponential"]
+	ls [label="ls
+~
+Exponential"]
+	sigma [label="sigma
+~
+HalfCauchy"]
+	subgraph cluster73 {
+		y [label="y
+~
+MvNormal" style=filled]
+		label=73 labeljust=r labelloc=b style=rounded
+	}
+	eta -> y
+	ls -> y
+	sigma -> y
+}

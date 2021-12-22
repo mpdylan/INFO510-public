@@ -4,7 +4,7 @@ This repository contains notebooks and slides related to INFO 510 / ISTA 410 at 
 
 ## Contents
 
-The `slides` directory contains old slides -- currently, those from Fall 2020. These will be replaced with slides from Spring 2021 soon.
+The `slides` directory contains old slides, from each of the three semesters that I taught it.
 
 The `notebooks` directory contains a number of example notebooks, covering a variety of topics and techniques. Some of the notebooks were written under old versions of PyMC3 and ArviZ and will not run under the current versions -- I'm currently working on fixing them.
 
@@ -16,7 +16,7 @@ The following list is currently incomplete.
 
 * **Binomial models**. In `binom_models`:
     * `vaccines.ipynb` contains a replication of Pfizer's analysis for the Emergency Use Authorization of their COVID-19 vaccine.
-    * `bike_lanes.ipynb` contains a hierarchical binomial model for bicycle traffic, following exercises 3.8 and 5.13 from BDA3.
+    * `bikelanes.ipynb` contains a hierarchical binomial model for bicycle traffic, following exercises 3.8 and 5.13 from BDA3.
 * **Normal models**. In `normal_models`:
     * `basketball.ipynb` contains a normal model for basketball scores.
     * `basketball_with_mcmc.ipynb` reworks the normal model in PyMC3 with MCMC sampling for inference.
@@ -28,6 +28,14 @@ The following list is currently incomplete.
     * `opening_blocking.ipynb` has a synthetic-data simulation to illustrate basic principles of opening and closing paths in a DAG for causal inference.
     * `simple_linear_reg.ipynb` is a basic demonstration of linear regression in PyMC3 using the relationship between global temperature and atmospheric carbon dioxide as an example.
     * `wines.ipynb` replicates the analysis of the Judgement of Princeton wine-tasting event from the exercises of McElreath's Statistical Rethinking course.
+* **Poisson regression**. In `poisson_models`:
+    * `salamanders.ipynb` contains an analysis of salamander counts using Poisson regression, following an exercise from Rethinking.
 * **Gaussian process regression**. In `gaussian_processes`:
     * `gp_cherry.ipynb` contains a Gaussian process model for the peak flowering date of cherry blossoms in Kyoto, Japan, using data from the 9th century CE to the present.
     * `gp_bikeshare.ipynb` contains a Poisson regression model for the count of bicycles checked out from the Capital Bikeshare system in Washington, DC over a two year period. In this notebook, we begin with a simple Poisson GLM with temperature and windspeed as predictors, and augment it with a latent Gaussian process to model changes in the popularity of the bike share system over time.
+* **Model checking**. In `checking`:
+    * `speed_of_light_ppc.ipynb` contains an example of using posterior predictive checking to assess the performance of a simple normal model (following BDA chapter 2)
+    * `waic_overfitting_working.ipynb` contains calculations using synthetic data to demonstrate AIC as an estimate of out-of-sample deviance.
+* **Sampling methods implemented by hand**: In `sampling`, two notebooks implementing Metropolis and grid-approximation inverse CDF sampling from scratch.
+* **Time series models**. In `time_series`: notebooks demonstrating simple implementations of Kalman filters and hidden Markov models (not using PyMC3).
+* **Miscellaneous models**. `kidney_cancer`, `election`, and `election_forecast` each attempt to reproduce the results of some examples from BDA3.

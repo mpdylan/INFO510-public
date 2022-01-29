@@ -1,0 +1,90 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Modeling ozone in Beijing
+
+This notebook explores a simple hierarchical linear model projecting ground level ozone as a function of high temperature in Beijing, China.
+The data set includes measurements from 12 different monitoring sites, which gives rise to the hierarchical structure.
+
+## Data loading and preprocessing
+
+We begin with some data wrangling: each monitoring site has its records in a separate CSV file. Our first task is to load the monitoring site data, create an overall date column out of the year, month, and day columns present in the CSV, and concatenate the individual tables into a single main table.
+
+```{r, message=FALSE, results='hide'}
+library(tibble)
+library(readr)
+library(cmdstanr)
+library(brms)
+library(ggplot2)
+
+set_cmdstan_path('/opt/cmdstan/')
+
+create_date_column <- function(tbl) {
+  date <- paste(tbl$year, tbl$month, tbl$day, sep="-") %>% lubridate::ymd()
+  tbl %>% dplyr::mutate(date=date)
+}
+
+aotizhongxin <- read_csv('../data/PRSAData/PRSA_Data_Aotizhongxin_20130301-20170228.csv') %>% create_date_column()
+changping <- read_csv('../data/PRSAData/PRSA_Data_Changping_20130301-20170228.csv') %>% create_date_column()
+dingling <- read_csv('../data/PRSAData/PRSA_Data_Dingling_20130301-20170228.csv') %>% create_date_column()
+dongsi <- read_csv('../data/PRSAData/PRSA_Data_Dongsi_20130301-20170228.csv') %>% create_date_column()
+guanyan <- read_csv('../data/PRSAData/PRSA_Data_Guanyuan_20130301-20170228.csv') %>% create_date_column()
+gucheng <- read_csv('../data/PRSAData/PRSA_Data_Gucheng_20130301-20170228.csv') %>% create_date_column()
+huairou <- read_csv('../data/PRSAData/PRSA_Data_Huairou_20130301-20170228.csv') %>% create_date_column()
+nongzhanguan <- read_csv('../data/PRSAData/PRSA_Data_Nongzhanguan_20130301-20170228.csv') %>% create_date_column()
+shunyi <- read_csv('../data/PRSAData/PRSA_Data_Shunyi_20130301-20170228.csv') %>% create_date_column()
+tiantan <- read_csv('../data/PRSAData/PRSA_Data_Tiantan_20130301-20170228.csv') %>% create_date_column()
+wanliu <- read_csv('../data/PRSAData/PRSA_Data_Wanliu_20130301-20170228.csv') %>% create_date_column()
+wanshouxigong <- read_csv('../data/PRSAData/PRSA_Data_Wanshouxigong_20130301-20170228.csv') %>% create_date_column()
+
+fulltable <- dplyr::bind_rows(
+  aotizhongxin,
+  changping,
+  dingling,
+  dongsi,
+  guanyan,
+  gucheng,
+  huairou,
+  nongzhanguan,
+  shunyi,
+  tiantan,
+  wanliu,
+  wanshouxigong
+) %>% dplyr::group_by(date, station) %>% dplyr::summarise(O3 = max(O3), TEMP = max(TEMP)) %>% dplyr::group_by(station)
+
+input_matrix <- dplyr::bind_cols(
+  aotizhongxin$TEMP,
+  changping$TEMP,
+  dingling$TEMP,
+  dongsi$TEMP,
+  guanyan$TEMP,
+  gucheng$TEMP,
+  huairou$TEMP,
+  nongzhanguan$TEMP,
+  shunyi$TEMP,
+  tiantan$TEMP,
+  wanliu$TEMP,
+  wanshouxigong$TEMP
+)
+
+output_matrix <- dplyr::bind_cols(
+  aotizhongxin$O3,
+  changping$O3,
+  dingling$O3,
+  dongsi$O3,
+  guanyan$O3,
+  gucheng$O3,
+  huairou$O3,
+  nongzhanguan$O3,
+  shunyi$O3,
+  tiantan$O3,
+  wanliu$O3,
+  wanshouxigong$O3
+) %>% log()
+```
+
+We'll focus on a linear relationship between log ozone and temperature, focusing on the maximum value of each per day. 
+Selecting out the maximum value reduces the size of the data set (reducing computational cost) and eliminates the typical periodicity connected to day/night cycles.
+

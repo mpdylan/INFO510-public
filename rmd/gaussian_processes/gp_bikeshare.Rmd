@@ -1,0 +1,130 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Hybrid GP and Poisson regression model for bike share usage
+
+Washington, D.C., like many other major cities, operates a bike share program, allowing individuals to rent bicycles on a per-hour basis, checking them out from stations placed throughout the city and returning them to the same or a different station when done.
+This allows convenient rental and payment, without having to pick up and return from a particular location, and is intended to increase the use of bicycles for recreation and tourism as well as reducing the number of short trips taken by private cars, thereby reducing traffic congestion and improving local air quality.
+Of course, one of the primary questions to ask about such a program is: how many people are using it and when?
+Can we understand the variables -- economic, environmental, or otherwise -- that influence peoples' choice of this mode of transportation?
+
+In this notebook, we explore the influence of weather on bike share usage, first by implementing a GLM to describe the effect of temperature and wind speed on the number of bike share checkouts per day, and then augmenting this with a Gaussian process model to capture the residual time variation of usage that is not explained by daily weather.
+
+```{r, message=FALSE, results=FALSE}
+library(readr)
+library(ggplot2)
+library(cmdstanr)
+library(brms)
+library(bayesplot)
+
+set_cmdstan_path('/opt/cmdstan')
+
+bike_data <- read_csv('../../data/)
+```
+
+First, brief inspection of the data set shows a few key features:
+* We have several weather variables of interest: temperature, humidity, windspeed, and apparent temperature (the temperature it "feels like").
+* We have a categorical weather variable `weathersit`. This encodes the presence of clouds, rain, and fog; broadly, 1 is clear; 2 is cloudy or misty; 3 is light rain, snow, or scattered storms; 4 is heavy rain, snow, ice, thunderstorm, and fog.
+* We have several plausible target variables: a total count of users, and counts broken out into casual (unregistered) and registered users.
+
+```{r}
+bike_data
+```
+
+## A simple Poisson regression
+
+To begin, we'll focus on temperature and windspeed.
+Broadly, we might expect these to be positively and negatively associated with bike share use, respectively.
+Biking is generally more pleasant in warmer weather (within limits) and on calmer days (since pedaling into a wind is physically difficult).
+We can look for these effects with a Poisson regression model.
+
+```
+// Stan program
+data {
+  int N;
+  vector[N] temp;
+  vector[N] windspeed;
+  array[N] int cnt;
+}
+
+parameters {
+  real alpha;
+  real beta_temp;
+  real beta_wind;
+}
+
+model {
+  alpha ~ normal(0, 5);
+  beta_temp ~ normal(0, 2);
+  beta_wind ~ normal(0, 2);
+  vector[N] theta = exp(alpha + beta_temp * temp + beta_wind * windspeed);
+  cnt ~ poisson(theta);
+}
+
+generated quantities {
+  array[N] int bikes_pred;
+  bikes_pred = poisson_rng(
+      exp(alpha + beta_temp * temp + beta_wind * windspeed)
+    );
+}
+```
+
+```{r}
+data_list <- list(N = nrow(bike_data),
+                  temp = bike_data$temp,
+                  windspeed = bike_data$windspeed,
+                  cnt = bike_data$cnt)
+poisson_model <- cmdstan_model('bikeshare_nogp.stan')
+poisson_fit <- poisson_model$sample()
+
+posterior <- poisson_fit$draws()[,,2:4]
+post_pred <- poisson_fit$draws()[,,-(1:4)]
+
+mcmc_combo(posterior)
+```
+
+The chains look healthy, and we do see the expected associations -- a clearly positive association with temperature and negative association with wind speed.
+
+## Posterior predictive checks
+
+In order to assess the quality of our fit, let's examine the posterior predictions alongside the real data.
+We'll extract a single run of posterior predictions for comparison.
+We can think of this as a single instance of what the model thinks a plausible two-year slice of counts would look like.
+
+```{r}
+pred_frame <- tibble(
+  dteday = bike_data$dteday,
+  cnt_true = bike_data$cnt,
+  cnt_pred = c(post_pred[1,1,])
+)
+
+ggplot(pred_frame) + 
+  geom_point(aes(cnt_true, cnt_pred)) + 
+  geom_abline(intercept = 0, slope = 1, colour = 'red', linetype=2) + 
+  labs("Predicted count vs. true count") +
+  xlab("True count") +
+  ylab("Predicted count") + theme_bw()
+
+ggplot(pred_frame) +
+  geom_point(aes(dteday, cnt_pred)) + 
+  geom_point(aes(dteday, cnt_true), color='red') + 
+  labs("Count vs. date; predicted and true") + 
+  theme_bw()
+
+ggplot(pred_frame) + 
+```
+
+The final plot shows a clear time dependence in the residuals. We can explore this more carefully by plotting only the true counts vs. date.
+
+```{r}
+
+```
+
+We can see that there are clear time effects in the true counts. To some degree, this is explained by our existing predictors.
+For example, low ridership appears during the winter, which is already explained by low temperature.
+However, usage in the summer of the second year is clearly higher than in the first year, so there are other time-dependent effects; for example, more people may become aware of the program over time, resulting in increased usage.
+The apparent flatness of usage during each summer suggests that a simple approach such as a linear predictor is likely to be insufficient to capture this variation, so we will try something more flexible: a Gaussian process.
+
+To reduce the computational burden of the GP, we will compute it only on a weekly basis, rather than daily (essentially, we are using a sparse approximation of the GP, with evenly spaced inducing points).

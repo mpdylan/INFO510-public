@@ -1,0 +1,67 @@
+---
+title: "Normal model for basketball scores"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+
+# Basketball scores
+
+This notebook demonstrates simple normal models for describing basketball scores.
+
+```{r, message=FALSE}
+library(tibble)
+library(ggplot2)
+library(cmdstanr)
+```
+
+## Selecting out modern scores
+
+First, we will prune some of the early years from the data set. As the plot below indicates, scores increased year to year for the first 10 or 15 years of the tournament. After this time, scores were more stable, although there was a drop in typical scores in the early 1980s, likely attributable to the introduction of the three-point shot.
+
+```{r, result=FALSE}
+bball <- tibble(read.csv('../../data/basketball.csv'))
+ggplot(bball) +
+  geom_point(aes(Year, Combined)) +
+  geom_smooth(aes(Year, Combined))
+```
+
+Below, a histogram of the scores remaining after we prune years before 1960 suggests a normal distribution of scores. This is to be expected, because a basketball score is a sum of small approximately independent contributions and thus should follow the central limit theorem.
+
+```{r}
+modern_era <- bball[bball$Year > 1960, ]
+ggplot(modern_era) + geom_histogram(aes(Combined), binwidth = 4)
+```
+
+## Estimating the average score
+
+To fit a model with MCMC, we define it in Stan.
+
+```
+data {
+int N;
+vector[N] score;
+}
+parameters {
+real mu;
+real<lower=0> sigma;
+}
+model {
+mu ~ normal(150, 25);
+sigma ~ exponential(1);
+score ~ normal(mu, sigma);
+}
+```
+
+```{r, results=FALSE, message=FALSE}
+set_cmdstan_path('/opt/cmdstan/')
+mod <- cmdstan_model('basketball.stan')
+datalist <- list(N = nrow(modern_era), score = modern_era$Combined)
+result <- mod$sample(data = datalist, chains = 4, parallel_chains = 4)
+bball.summary <- result$summary()
+```
+```{r}
+bball.summary
+```

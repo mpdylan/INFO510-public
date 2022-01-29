@@ -1,0 +1,77 @@
+---
+title: "Hierarchical model for bicycle traffic across several streets"
+output:
+  pdf_document: default
+  html_notebook: default
+  html_document:
+    df_print: paged
+---
+
+# Hierarchical model for bicycle traffic
+
+This notebook explores an example from Gelman et al.'s *Bayesian Data Analysis*, 3rd ed.
+This example appears across several exercises.
+The data come from a study of bicycle traffic on several streets in Berkeley, CA.
+Each street was observed for a fixed amount of time and the number of bicycles and other vehicles that passed by the checkpoint recorded.
+The task is to estimate the proportion of traffic that is made up of bicycles.
+In this notebook, we investigate only a small portion of the data, corresponding to streets that are classified as low-traffic neighborhood streets, and which have bike lanes.
+The full data set includes three classifications of streets by traffic level, and observations of streets with and without bike lanes within each class.
+
+```{r, message=FALSE}
+# Setup
+library(tibble)
+library(dplyr)
+library(ggplot2)
+library(cmdstanr)
+
+set_cmdstan_path('/opt/cmdstan/')
+# Data from Table 3.3 in BDA
+bicycles <- c(16,9,10,13,19,20,18,17,35,55)
+others <- c(58,90,48,57,103,57,86,112,273,64)
+
+data <- tibble(
+  bicycles = bicycles,
+  others = others,
+  total = bicycles + others
+)
+```
+
+Before exploring a hierarchical model, we may consider the two extreme limits of pooling.
+We could analyze this data with a fully pooled model, by summing the vehicle counts from all streets and estimating a single underlying parameter representing the proportion of bicycle traffic.
+Alternatively, we could try a fully unpooled model, assigning each street its own proportion and estimating all ten parameters independently.
+Stan code for each of these models is given below.
+
+```
+// fully pooled model
+data {
+int bicycles;
+int total;
+}
+parameters {
+real<lower=0, upper=1> theta;
+}
+model {
+theta ~ beta(1, 3);
+bicycles ~ binomial(total, theta);
+}
+// fully unpooled model
+data {
+int N;
+array[N] int bicycles;
+array[N] int total;
+}
+parameters {
+vector<lower=0, upper=1>[N] theta;
+}
+model {
+for (i in 1:N) {
+  theta[i] ~ beta(1, 3);
+  bicycles[i] ~ binomial(total[i], theta[i]);
+}
+}
+```
+
+Now it's time to fit both models.
+
+```{r}
+pooled_model 
